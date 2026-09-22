@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
-} from 'recharts'
+import PortalHeader from '@/components/PortalHeader'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { TrendingUp, Package, AlertTriangle, Scale, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
@@ -24,25 +22,18 @@ export default function AnalyticsPage() {
   const [reporte, setReporte] = useState<FilaReporte[]>([])
   const [cargando, setCargando] = useState(true)
 
-  useEffect(() => {
-    cargarReporte()
-  }, [])
+  useEffect(() => { cargarReporte() }, [])
 
   async function cargarReporte() {
     setCargando(true)
-    const { data } = await supabase
-      .from('vw_reporte_semanal_volumen')
-      .select('*')
-      .order('semana', { ascending: true })
+    const { data } = await supabase.from('vw_reporte_semanal_volumen').select('*').order('semana', { ascending: true })
     setReporte(data ?? [])
     setCargando(false)
   }
 
   const totalPaquetes = reporte.reduce((acc, r) => acc + r.total_paquetes, 0)
   const totalTonelaje = reporte.reduce((acc, r) => acc + r.tonelaje_kg, 0)
-  const otifPromedio = reporte.length
-    ? Math.round(reporte.reduce((acc, r) => acc + r.porcentaje_otif, 0) / reporte.length)
-    : 0
+  const otifPromedio = reporte.length ? Math.round(reporte.reduce((acc, r) => acc + r.porcentaje_otif, 0) / reporte.length) : 0
   const totalInconsistencias = reporte.reduce((acc, r) => acc + r.inconsistentes, 0)
 
   function exportarExcel() {
@@ -54,21 +45,17 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Portal Gerencial & KPIs</h1>
-          <p className="text-sm text-slate-500">Efectividad OTIF, mermas y volumen por zona</p>
-        </div>
-        <button
-          onClick={exportarExcel}
-          className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-4 py-2"
-        >
-          <Download className="w-4 h-4" /> Exportar Excel
-        </button>
-      </header>
+      <PortalHeader
+        titulo="Portal Gerencial & KPIs"
+        subtitulo="Efectividad OTIF, mermas y volumen por zona"
+        acciones={
+          <button onClick={exportarExcel} className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-4 py-2">
+            <Download className="w-4 h-4" /> Exportar Excel
+          </button>
+        }
+      />
 
       <main className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* Tarjetas KPI */}
         <div className="grid grid-cols-4 gap-4">
           <TarjetaKPI icono={<Package className="w-5 h-5" />} label="Total paquetes" valor={totalPaquetes.toLocaleString()} />
           <TarjetaKPI icono={<TrendingUp className="w-5 h-5" />} label="OTIF promedio" valor={`${otifPromedio}%`} color="emerald" />
@@ -79,9 +66,7 @@ export default function AnalyticsPage() {
         {cargando ? (
           <div className="text-center text-slate-400 py-16 text-sm">Cargando métricas...</div>
         ) : reporte.length === 0 ? (
-          <div className="text-center text-slate-400 py-16 text-sm">
-            Aún no hay datos suficientes. Los reportes aparecerán cuando existan paquetes procesados.
-          </div>
+          <div className="text-center text-slate-400 py-16 text-sm">Aún no hay datos suficientes. Los reportes aparecerán cuando existan paquetes procesados.</div>
         ) : (
           <div className="grid grid-cols-2 gap-6">
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -118,19 +103,11 @@ export default function AnalyticsPage() {
   )
 }
 
-function TarjetaKPI({ icono, label, valor, color = 'slate' }: {
-  icono: React.ReactNode; label: string; valor: string; color?: 'slate' | 'emerald' | 'rose'
-}) {
-  const colores = {
-    slate: 'text-slate-600 bg-slate-100',
-    emerald: 'text-emerald-600 bg-emerald-50',
-    rose: 'text-rose-600 bg-rose-50',
-  }
+function TarjetaKPI({ icono, label, valor, color = 'slate' }: { icono: React.ReactNode; label: string; valor: string; color?: 'slate' | 'emerald' | 'rose' }) {
+  const colores = { slate: 'text-slate-600 bg-slate-100', emerald: 'text-emerald-600 bg-emerald-50', rose: 'text-rose-600 bg-rose-50' }
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-5">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${colores[color]}`}>
-        {icono}
-      </div>
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${colores[color]}`}>{icono}</div>
       <p className="text-2xl font-semibold text-slate-900">{valor}</p>
       <p className="text-xs text-slate-500 mt-0.5">{label}</p>
     </div>

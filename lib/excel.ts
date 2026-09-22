@@ -1,10 +1,5 @@
 import * as XLSX from 'xlsx'
 
-// ---------------------------------------------------------------------
-// Tipos
-// ---------------------------------------------------------------------
-export type EstadoConciliacion = 'conciliado' | 'faltante' | 'sobrante'
-
 export interface FilaAranda {
   guia: string
   destinatario: string
@@ -20,15 +15,14 @@ export interface ResultadoParseo {
   totalFilas: number
 }
 
+export type EstadoConciliacion = 'conciliado' | 'faltante' | 'sobrante'
+
 export interface FilaConciliacion extends FilaAranda {
   estado: EstadoConciliacion
   paquete_id?: string
   evidencia_url?: string
 }
 
-// ---------------------------------------------------------------------
-// Mapeo inteligente de columnas (tolerante a variaciones de nombre/orden)
-// ---------------------------------------------------------------------
 const ALIAS_COLUMNAS: Record<keyof FilaAranda, string[]> = {
   guia: ['guia', 'guía', 'numero_guia', 'no_guia', 'tracking', 'awb'],
   destinatario: ['destinatario', 'cliente', 'nombre_cliente', 'consignee'],
@@ -39,19 +33,12 @@ const ALIAS_COLUMNAS: Record<keyof FilaAranda, string[]> = {
 }
 
 function normalizarEncabezado(h: string): string {
-  return h
-    .toString()
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // quita acentos
-    .replace(/\s+/g, '_')
+  return h.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_')
 }
 
 function construirMapaColumnas(encabezados: string[]): Partial<Record<keyof FilaAranda, string>> {
   const normalizados = encabezados.map((h) => ({ original: h, norm: normalizarEncabezado(h) }))
   const mapa: Partial<Record<keyof FilaAranda, string>> = {}
-
   for (const campo of Object.keys(ALIAS_COLUMNAS) as (keyof FilaAranda)[]) {
     const alias = ALIAS_COLUMNAS[campo]
     const encontrado = normalizados.find((h) => alias.includes(h.norm))
@@ -60,9 +47,6 @@ function construirMapaColumnas(encabezados: string[]): Partial<Record<keyof Fila
   return mapa
 }
 
-// ---------------------------------------------------------------------
-// Parseo defensivo del manifiesto (nunca lanza excepción: siempre reporta)
-// ---------------------------------------------------------------------
 export async function parsearManifiestoAranda(file: File): Promise<ResultadoParseo> {
   const filasValidas: FilaAranda[] = []
   const filasError: ResultadoParseo['filasError'] = []
@@ -81,17 +65,11 @@ export async function parsearManifiestoAranda(file: File): Promise<ResultadoPars
 
   const hoja = workbook.Sheets[workbook.SheetNames[0]]
   if (!hoja) {
-    return {
-      filasValidas: [],
-      filasError: [{ fila: 0, motivo: 'El archivo no contiene hojas', datosOriginales: null }],
-      totalFilas: 0,
-    }
+    return { filasValidas: [], filasError: [{ fila: 0, motivo: 'El archivo no contiene hojas', datosOriginales: null }], totalFilas: 0 }
   }
 
   const filas = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, { defval: null })
-  if (filas.length === 0) {
-    return { filasValidas: [], filasError: [], totalFilas: 0 }
-  }
+  if (filas.length === 0) return { filasValidas: [], filasError: [], totalFilas: 0 }
 
   const encabezados = Object.keys(filas[0])
   const mapa = construirMapaColumnas(encabezados)
@@ -101,37 +79,20 @@ export async function parsearManifiestoAranda(file: File): Promise<ResultadoPars
   if (faltantes.length > 0) {
     return {
       filasValidas: [],
-      filasError: [
-        {
-          fila: 0,
-          motivo: `No se pudieron mapear columnas obligatorias: ${faltantes.join(', ')}. Verifica los encabezados del Excel.`,
-          datosOriginales: encabezados,
-        },
-      ],
+      filasError: [{ fila: 0, motivo: `No se pudieron mapear columnas obligatorias: ${faltantes.join(', ')}.`, datosOriginales: encabezados }],
       totalFilas: filas.length,
     }
   }
 
   const guiasVistas = new Set<string>()
-
   filas.forEach((filaOriginal, idx) => {
-    const numeroFila = idx + 2 // +2 por encabezado + índice base 1
-
+    const numeroFila = idx + 2
     const guia = mapa.guia ? String(filaOriginal[mapa.guia] ?? '').trim() : ''
     const zona = mapa.zona ? String(filaOriginal[mapa.zona] ?? '').trim() : ''
 
-    if (!guia) {
-      filasError.push({ fila: numeroFila, motivo: 'Número de guía vacío', datosOriginales: filaOriginal })
-      return
-    }
-    if (guiasVistas.has(guia)) {
-      filasError.push({ fila: numeroFila, motivo: `Guía duplicada en el archivo: ${guia}`, datosOriginales: filaOriginal })
-      return
-    }
-    if (!zona) {
-      filasError.push({ fila: numeroFila, motivo: 'Zona vacía', datosOriginales: filaOriginal })
-      return
-    }
+    if (!guia) { filasError.push({ fila: numeroFila, motivo: 'Número de guía vacío', datosOriginales: filaOriginal }); return }
+    if (guiasVistas.has(guia)) { filasError.push({ fila: numeroFila, motivo: `Guía duplicada: ${guia}`, datosOriginales: filaOriginal }); return }
+    if (!zona) { filasError.push({ fila: numeroFila, motivo: 'Zona vacía', datosOriginales: filaOriginal }); return }
 
     let peso: number | null = null
     if (mapa.peso_kg && filaOriginal[mapa.peso_kg] != null) {
@@ -153,9 +114,6 @@ export async function parsearManifiestoAranda(file: File): Promise<ResultadoPars
   return { filasValidas, filasError, totalFilas: filas.length }
 }
 
-// ---------------------------------------------------------------------
-// Exportador de cierre "Macro-Ready" para Aranda
-// ---------------------------------------------------------------------
 export function exportarCierreAranda(filas: FilaConciliacion[], nombreArchivo = 'cierre_aranda'): void {
   const dataFormateada = filas.map((f) => ({
     'Número de Guía': f.guia,
@@ -165,33 +123,16 @@ export function exportarCierreAranda(filas: FilaConciliacion[], nombreArchivo = 
     'Peso (kg)': f.peso_kg ?? '',
     'Evidencia (URL)': f.evidencia_url ?? '',
   }))
-
   const hoja = XLSX.utils.json_to_sheet(dataFormateada)
-
-  // Ancho de columnas legible
-  hoja['!cols'] = [
-    { wch: 18 }, // Guía
-    { wch: 28 }, // Destinatario
-    { wch: 14 }, // Zona
-    { wch: 14 }, // Estado
-    { wch: 10 }, // Peso
-    { wch: 40 }, // Evidencia
-  ]
-
+  hoja['!cols'] = [{ wch: 18 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 40 }]
   const libro = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(libro, hoja, 'Cierre')
-
   const fecha = new Date().toISOString().split('T')[0]
   XLSX.writeFile(libro, `${nombreArchivo}_${fecha}.xlsx`)
 }
 
-// ---------------------------------------------------------------------
-// Utilidad: calcula el hash SHA-256 de un archivo (evitar cargas duplicadas)
-// ---------------------------------------------------------------------
 export async function calcularHashArchivo(file: File): Promise<string> {
   const buffer = await file.arrayBuffer()
   const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
+  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('')
 }

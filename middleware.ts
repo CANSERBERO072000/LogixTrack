@@ -1,13 +1,13 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Mapa de rutas protegidas -> roles permitidos
 const RUTAS_POR_ROL: Record<string, string[]> = {
   '/dashboard': ['admin', 'executive'],
   '/driver': ['driver', 'admin'],
   '/warehouse': ['warehouse', 'admin'],
   '/history': ['admin', 'executive', 'warehouse'],
   '/analytics': ['admin', 'executive'],
+  '/admin': ['admin'],
 }
 
 const HOME_POR_ROL: Record<string, string> = {
@@ -49,7 +49,6 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
   const esRutaProtegida = Object.keys(RUTAS_POR_ROL).some((r) => path.startsWith(r))
 
-  // Sin sesión intentando entrar a ruta protegida -> /login
   if (!user && esRutaProtegida) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
@@ -57,7 +56,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Con sesión: validar rol contra la ruta solicitada
   if (user && esRutaProtegida) {
     const { data: perfil } = await supabase
       .from('perfiles')
@@ -72,7 +70,9 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    const seccion = Object.keys(RUTAS_POR_ROL).find((r) => path.startsWith(r))!
+    const seccion = Object.keys(RUTAS_POR_ROL)
+      .sort((a, b) => b.length - a.length)
+      .find((r) => path.startsWith(r))!
     const rolesPermitidos = RUTAS_POR_ROL[seccion]
 
     if (!rolesPermitidos.includes(perfil.role)) {
@@ -82,7 +82,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Usuario ya logueado visitando /login -> redirigir a su home
   if (user && path === '/login') {
     const { data: perfil } = await supabase
       .from('perfiles')
@@ -105,6 +104,7 @@ export const config = {
     '/warehouse/:path*',
     '/history/:path*',
     '/analytics/:path*',
+    '/admin/:path*',
     '/login',
   ],
 }

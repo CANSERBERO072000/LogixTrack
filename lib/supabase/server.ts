@@ -16,15 +16,14 @@ export function createClient() {
           try {
             cookieStore.set({ name, value, ...options })
           } catch {
-            // Se ignora en Server Components sin permiso de escritura;
-            // el middleware se encarga de refrescar la sesión.
+            // Se ignora en Server Components sin permiso de escritura
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: '', ...options })
           } catch {
-            // Igual que arriba.
+            // Igual que arriba
           }
         },
       },
@@ -32,7 +31,6 @@ export function createClient() {
   )
 }
 
-/** Obtiene el perfil (con rol) del usuario autenticado actual. */
 export async function getPerfilActual() {
   const supabase = createClient()
   const {

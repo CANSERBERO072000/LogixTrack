@@ -1,78 +1,81 @@
-# Control Logístico — Trazabilidad y Conciliación de Paquetería
+# Control Logístico — Trazabilidad y Gestión de Última Milla
 
-Sistema Web + PWA Móvil construido con **Next.js 14 (App Router)**, **Supabase** (PostgreSQL + Auth + Storage) y **Tailwind CSS**. Cero servidores propios, cero descargas para el usuario final: se despliega directo a Vercel.
+Sistema Web + PWA Móvil construido con **Next.js 14 (App Router)**, **Supabase** (PostgreSQL + Auth + Storage) y **Tailwind CSS**.
 
 ## 📁 Estructura del proyecto
 
 ```
 proyecto-logistica/
 ├── app/
-│   ├── login/page.tsx        Autenticación unificada
+│   ├── login/page.tsx        Autenticación (con imagen de marca)
+│   ├── admin/page.tsx        Panel de Administración: usuarios/RBAC, sucursales, SLA, auditoría
 │   ├── dashboard/page.tsx    Portal Coordinador (Excel + semáforo)
-│   ├── driver/page.tsx       PWA Motorista (offline-first)
+│   ├── driver/page.tsx       PWA Motorista (inicio de jornada + offline-first)
 │   ├── warehouse/page.tsx    Portal Bodega (kiosco)
 │   ├── history/page.tsx      Histórico / cadena de custodia
 │   ├── analytics/page.tsx    KPIs gerenciales
+│   ├── icon.png               Favicon (tu logo)
 │   ├── layout.tsx / page.tsx / globals.css
+├── components/
+│   ├── LogoutButton.tsx       Cierre de sesión reutilizable
+│   └── PortalHeader.tsx       Header unificado con logo + logout
 ├── lib/
-│   ├── excel.ts               Parseo Aranda + exportador de cierre
+│   ├── excel.ts
 │   └── supabase/client.ts, server.ts
-├── middleware.ts              Protección de rutas por rol
-├── schema.sql                 Script completo de base de datos
-├── public/manifest.json       Manifest de la PWA
+├── middleware.ts              Protección de rutas por rol (incluye /admin)
+├── schema.sql                 Script base de base de datos
+├── schema_extension.sql       Extensión: sucursales, SLA, catálogos, auditoría
+├── public/
+│   ├── logo.png                Tu logo
+│   ├── login-bg.jpg            Foto de fondo del login
+│   ├── icon-192.png / icon-512.png
+│   └── manifest.json
 └── package.json
 ```
 
-## 🚀 Despliegue Express (15 minutos)
+## 🚀 Despliegue Express
 
-### 1. Crear el proyecto en Supabase
-1. Ve a [supabase.com](https://supabase.com) → **New Project**.
-2. Copia la **Project URL** y la **anon public key** (Settings → API).
-3. Abre el **SQL Editor** → pega el contenido completo de `schema.sql` → **Run**.
-   - Esto crea los enums, tablas, triggers, vistas, políticas RLS y los buckets de Storage (`evidencias`, `firmas`).
-4. Crea los primeros usuarios en **Authentication → Users → Add User** (o desde tu propia UI de registro), y asígnales el rol correcto actualizando la columna `role` en la tabla `perfiles` desde el **Table Editor**.
+### 1. Base de datos en Supabase
+1. **SQL Editor** → pega y ejecuta **`schema.sql`** completo → Run.
+2. Luego pega y ejecuta **`schema_extension.sql`** completo → Run.
+   - Esto agrega: `sucursales`, `sla_config`, `catalogos` (motivos de no entrega), `auditoria`, y la función `registrar_auditoria()` que usa el panel de administración.
 
-### 2. Subir el código a GitHub
-```bash
-cd proyecto-logistica
-git init
-git add .
-git commit -m "Sistema de control logístico inicial"
-git branch -M main
-git remote add origin https://github.com/tu-usuario/tu-repo.git
-git push -u origin main
-```
+### 2. Sube el código a GitHub y despliega en Vercel
+Igual que antes — commit, push a `main`, importar en Vercel con las variables `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
-### 3. Desplegar en Vercel
-1. Ve a [vercel.com/new](https://vercel.com/new) e importa el repositorio de GitHub.
-2. En **Environment Variables**, agrega:
+### 3. Accede al Panel de Administración
+Inicia sesión con un usuario `role = admin` y visita `/admin`. Desde ahí puedes:
+- Cambiar el rol y la zona de cualquier usuario sin tocar la base de datos manualmente.
+- Dar de alta sucursales/bases de operación.
+- Configurar umbrales de alerta de SLA (🟡 alerta / 🔴 crítico) por zona.
+- Ver la bitácora de auditoría (quién hizo qué y cuándo).
 
-   | Nombre | Valor |
-   |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | La Project URL de Supabase |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | La anon public key de Supabase |
+## 🎨 Identidad visual
 
-3. Click en **Deploy**. Vercel detecta Next.js automáticamente — no requiere configuración adicional.
-4. Cuando termine, tendrás una URL pública (`https://tu-proyecto.vercel.app`) lista para compartir con coordinadores, motoristas y bodega.
+- **Favicon**: se toma automáticamente de `app/icon.png` (tu logo).
+- **Login**: panel dividido — tu foto de bodega/camión a la izquierda con overlay de marca, formulario a la derecha.
+- **Logo**: usado en el header de cada portal (`components/PortalHeader.tsx`) y en el login.
 
-### 4. Instalar la PWA en los teléfonos de los motoristas
-1. Abre `https://tu-proyecto.vercel.app/driver` desde Chrome/Safari en el teléfono.
-2. Toca **"Agregar a pantalla de inicio"** — no requiere App Store ni Play Store.
-3. La app funciona sin señal gracias a IndexedDB (`localforage`); sincroniza automáticamente al recuperar conexión.
+## 🔓 Cierre de sesión
 
-## 🔐 Notas de seguridad importantes
+Todos los portales (`/dashboard`, `/driver`, `/warehouse`, `/history`, `/analytics`, `/admin`) tienen un botón de **Cerrar sesión** visible en el header. En `/driver` y `/warehouse` (fondo oscuro) se muestra en variante clara para mantener contraste.
 
-- Todas las tablas tienen **Row Level Security (RLS)** activado desde el primer `schema.sql` — nunca lo desactives en producción.
-- Los buckets de Storage son **privados**; las evidencias solo son accesibles por usuarios autenticados con el rol correspondiente.
-- El `middleware.ts` valida la sesión **en cada request** a rutas protegidas y redirige según el rol almacenado en `perfiles.role`.
-- Cambia la anon key solo si sospechas que fue expuesta; nunca subas la `service_role key` al repositorio ni al frontend.
+## 🧩 Mapeo de tu especificación de 6 módulos
 
-## 🧩 Piezas pendientes de integración real (marcadas en el código)
+| Módulo solicitado | Dónde vive en el código |
+|---|---|
+| 1. Autenticación y perfil del motorista | `/app/driver` — pantalla de inicio de jornada (placa + confirmación) antes de habilitar el escáner |
+| 2. Manifiesto y escaneo masivo | `/app/dashboard` (carga de Excel) + `/app/driver` (escaneo). El código QR maestro y el cierre de lote están como columnas listas en `manifiestos_aranda` (`codigo_qr_maestro`, `cerrado`) — falta la UI de "Generar Manifiesto" |
+| 3. Ejecución en ruta / offline | `/app/driver` — cola IndexedDB con `localforage`, sincronización automática al recuperar señal, catálogo de motivos de no entrega ya cargado en `catalogos` |
+| 4. Entrega y cierre en bodega | `/app/warehouse` — escaneo en ráfaga, check-in de unidad. Falta: lectura del QR maestro para cambio de estado masivo y firma digital en pantalla |
+| 5. Panel de coordinadores | `/app/dashboard` + `/app/analytics` |
+| 6. Panel de administración | `/app/admin` — usuarios/RBAC, sucursales, SLA, auditoría, catálogos dinámicos |
 
-Para mantener el código legible y enfocado en la arquitectura, algunas piezas quedaron como puntos de extensión explícitos:
-- **Decodificación real de QR/código de barras** en `/app/driver`: se recomienda `@zxing/browser` o `jsQR` leyendo frames de `<video>` a `<canvas>`.
-- **Compresión y marca de agua de fotos** (timestamp/GPS/usuario) antes de subir a Storage: usar `canvas` en cliente antes de `supabase.storage.upload()`.
-- **Resolución de `paquete_id` por guía** en la sincronización offline: se recomienda una función RPC de Postgres (`SECURITY DEFINER`) que reciba la guía y devuelva/cree el registro correspondiente de forma atómica.
-- **Generación de PDF** para reportes semanales en `/analytics`: puede añadirse con `@react-pdf/renderer` o llamando a un endpoint serverless.
+## 🧩 Piezas pendientes de integración real
 
-Estas piezas no afectan la arquitectura de datos, seguridad ni RBAC — son integraciones de librerías específicas que conviene ajustar según el hardware real de escaneo utilizado.
+- **Decodificación real de QR/código de barras** (`@zxing/browser` o `jsQR`).
+- **OCR de respaldo** para tickets dañados (Módulo 2) — se integraría con una API de visión (ej. Google Vision o Tesseract.js en cliente).
+- **QR Maestro por lote** — la estructura de datos ya existe (`codigo_qr_maestro` en `manifiestos_aranda`); falta la pantalla de "Generar Manifiesto" que agrupe los escaneos sueltos.
+- **Firma digital en pantalla** (canvas táctil) para el POD en bodega.
+- **Alertas de SLA en vivo** en el dashboard — la tabla `sla_config` ya tiene los umbrales; falta el cálculo en tiempo real comparando `paquetes.created_at` contra las reglas.
+- **Compresión y marca de agua de fotos** antes de subir a Storage.

@@ -1,7 +1,7 @@
 {
-  "name": "Control Logístico - Motorista",
-  "short_name": "LogísticaApp",
-  "description": "PWA de escaneo y trazabilidad de paquetería para motoristas",
+  "name": "Control Logístico",
+  "short_name": "CtrlLog",
+  "description": "PWA de trazabilidad y escaneo de paquetería para motoristas",
   "start_url": "/driver",
   "display": "standalone",
   "background_color": "#0f172a",
